@@ -71,6 +71,29 @@ function analizarEstructura(codigo) {
         metodosClase.push(nombre);
          }
          }
+                if (
+            nodo.type === 'PropertyDefinition' &&
+            nodo.value &&
+            ['ArrowFunctionExpression', 'FunctionExpression']
+                .includes(nodo.value.type)
+        ) {
+            let nombre;
+
+            if (nodo.key.type === 'Identifier') {
+                nombre = nodo.key.name;
+            } else if (
+                nodo.computed &&
+                nodo.key.type === 'Literal'
+            ) {
+                nombre = String(nodo.key.value);
+            }
+
+            if (nombre) {
+                metodosClase.push(nombre);
+            }
+        }
+
+
 
         if (
             nodo.type === 'VariableDeclarator' &&

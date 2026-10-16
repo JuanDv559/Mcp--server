@@ -137,3 +137,16 @@ test('detecta métodos privados y calculados de clases', () => {
     assert.match(resultado, /validarRuta/);
     assert.match(resultado, /leer.*Archivo|leerArchivo/);
 });
+test('detecta propiedades de clase con funciones flecha', () => {
+    const codigo = `
+        class GestorArchivos {
+            leer = () => {};
+            guardar = async () => {};
+        }
+    `;
+
+    const resultado = analizarEstructura(codigo);
+
+    assert.match(resultado, /leer/);
+    assert.match(resultado, /guardar/);
+});
