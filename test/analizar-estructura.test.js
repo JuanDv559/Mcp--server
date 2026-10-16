@@ -124,3 +124,16 @@ test('detecta métodos normales y asíncronos de clases', () => {
     assert.match(resultado, /leerArchivo/);
     assert.match(resultado, /buscarArchivo/);
 });
+test('detecta métodos privados y calculados de clases', () => {
+    const codigo = `
+        class GestorArchivos {
+            #validarRuta() {}
+            ['leer' + 'Archivo']() {}
+        }
+    `;
+
+    const resultado = analizarEstructura(codigo);
+
+    assert.match(resultado, /validarRuta/);
+    assert.match(resultado, /leer.*Archivo|leerArchivo/);
+});

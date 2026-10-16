@@ -43,13 +43,34 @@ function analizarEstructura(codigo) {
     clases.push(nodo.id.name);
         }
 
-        if (
-            nodo.type === 'MethodDefinition' &&
-            nodo.key.type === 'Identifier' &&
-            nodo.kind === 'method'
+       if (
+           nodo.type === 'MethodDefinition' &&
+           nodo.kind === 'method'
+          ) {
+           let nombre;
+
+        if (nodo.key.type === 'Identifier') {
+            nombre = nodo.key.name;
+        } else if (nodo.key.type === 'PrivateIdentifier') {
+            nombre = nodo.key.name;
+        } else if (nodo.computed && nodo.key.type === 'Literal'){
+            nombre = String(nodo.key.value);
+        } else if (
+            nodo.computed &&
+            nodo.key.type === 'BinaryExpression' &&
+            nodo.key.operator === '+' &&
+            nodo.key.left.type === 'Literal' &&
+            nodo.key.right.type === 'Literal'
         ) {
-        metodosClase.push(nodo.key.name);
+            nombre = String(nodo.key.left.value) +
+            String(nodo.key.right.value);
+        } else if (nodo.computed) {
+            nombre = '[nombre calculado]';
         }
+        if (nombre) {
+        metodosClase.push(nombre);
+         }
+         }
 
         if (
             nodo.type === 'VariableDeclarator' &&
