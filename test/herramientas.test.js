@@ -61,3 +61,18 @@ test('propaga los errores de la llamada MCP', async () => {
         /Error de conexión MCP/
     );
 });
+test('detecta errores devueltos por la herramienta MCP', async () => {
+    const mcp = {
+        async callTool() {
+            return {
+                isError: true,
+                content: [{ text: 'No se pudo leer el archivo' }]
+            };
+        }
+    };
+
+    await assert.rejects(
+        ejecutarHerramienta(mcp, 'read_file', {}),
+        /No se pudo leer el archivo/
+    );
+});

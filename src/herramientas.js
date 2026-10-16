@@ -5,7 +5,16 @@ export async function ejecutarHerramienta(mcp, nombre, argumentos) {
         arguments: argumentos
     });
 
-    return (resultado.content || [])
+    const contenido = (resultado.content || [])
         .map(item => item.text || '')
         .join('\n');
+
+    if (resultado.isError) {
+        throw new Error(
+            contenido || `La herramienta MCP "${nombre}" devolvió un error`
+        );
+    }
+
+    return contenido;
 }
+
