@@ -66,3 +66,36 @@ test('detecta funciones flecha con parámetros predeterminados', () => {
 
     assert.match(resultado, /buscar/);
 });
+test('ignora herramientas MCP mencionadas en comentarios', () => {
+    const codigo = `
+        // server.registerTool("herramienta-falsa", {});
+        const texto = "server.registerTool('otra-falsa', {})";
+    `;
+
+    const resultado = analizarEstructura(codigo);
+
+    assert.doesNotMatch(resultado, /herramienta-falsa/);
+    assert.doesNotMatch(resultado, /otra-falsa/);
+});
+
+test('detecta funciones dentro de estructuras anidadas', () => {
+    const codigo = `
+        if (true) {
+            const buscar = (ruta = obtenerRuta()) => ruta;
+        }
+    `;
+
+    const resultado = analizarEstructura(codigo);
+
+    assert.match(resultado, /buscar/);
+});
+test('informa cuando el código JavaScript tiene sintaxis inválida', () => {
+    const codigo = 'const = =>';
+
+    const resultado = analizarEstructura(codigo);
+
+    assert.match(
+        resultado,
+        /No se pudo analizar la sintaxis JavaScript/
+    );
+});
