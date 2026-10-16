@@ -1,11 +1,9 @@
 
 import { cargarInstrucciones } from './instructions.js';
+import { necesitaAnalisis } from './detectar-tipo-tarea.js';
 
 export async function seleccionarInstrucciones(tarea) {
-    const necesitaAnalisis =
-        /\b(código|codigo|archivo|función|funcion|depurar|error|bug|herramienta|mcp|inventario|estructura|carpetas|directorios|archivos del proyecto|lista de archivos|enumera los archivos)\b/i.test(tarea);
-
-    if (necesitaAnalisis) {
+    if (necesitaAnalisis(tarea)) {
         return await cargarInstrucciones();
     }
 
