@@ -9,6 +9,8 @@ function analizarEstructura(codigo) {
     const funciones = [];
     const declaraciones = [];
     const metodos = [];
+    const clases = [];
+    const metodosClase = [];
 
     let ast;
 
@@ -35,6 +37,18 @@ function analizarEstructura(codigo) {
 
         if (nodo.type === 'FunctionDeclaration' && nodo.id) {
             funciones.push(nodo.id.name);
+        }
+
+        if (nodo.type === 'ClassDeclaration' && nodo.id) {
+    clases.push(nodo.id.name);
+        }
+
+        if (
+            nodo.type === 'MethodDefinition' &&
+            nodo.key.type === 'Identifier' &&
+            nodo.kind === 'method'
+        ) {
+        metodosClase.push(nodo.key.name);
         }
 
         if (
@@ -65,11 +79,11 @@ function analizarEstructura(codigo) {
             nodo.callee.type === 'MemberExpression' &&
             !nodo.callee.computed &&
             nodo.callee.object.type === 'Identifier' &&
-            ['fs', 'pathModule'].includes(nodo.callee.object.name) &&
+            ['fs',                  'pathModule'].includes(nodo.callee.object.name) &&
             nodo.callee.property.type === 'Identifier'
         ) {
             metodos.push(
-                `${nodo.callee.object.name}.${nodo.callee.property.name}`
+                        `${nodo.callee.object.name}.${nodo.callee.property.name}`
             );
         }
 
@@ -101,6 +115,18 @@ function analizarEstructura(codigo) {
             ? funciones.map(n => `- ${n}`)
             : ['- No detectadas']),
         '',
+
+        '',
+         'Clases declaradas:',
+        ...(clases.length
+         ? clases.map(n => `- ${n}`)
+        : ['- No detectadas']),
+        '',
+        'Métodos de clase:',
+        ...(metodosClase.length
+        ? [...new Set(metodosClase)].map(n => `- ${n}`)
+        : ['- No detectados']),
+
         'Declaraciones const/let/var con función flecha:',
         ...(declaraciones.length
             ? declaraciones.map(n => `- ${n}`)

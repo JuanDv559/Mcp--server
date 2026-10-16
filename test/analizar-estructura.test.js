@@ -99,3 +99,28 @@ test('informa cuando el código JavaScript tiene sintaxis inválida', () => {
         /No se pudo analizar la sintaxis JavaScript/
     );
 });
+test('detecta clases declaradas', () => {
+    const codigo = `
+        class GestorArchivos {}
+        class GestorMCP extends GestorArchivos {}
+    `;
+
+    const resultado = analizarEstructura(codigo);
+
+    assert.match(resultado, /GestorArchivos/);
+    assert.match(resultado, /GestorMCP/);
+});
+
+test('detecta métodos normales y asíncronos de clases', () => {
+    const codigo = `
+        class GestorArchivos {
+            leerArchivo() {}
+            async buscarArchivo() {}
+        }
+    `;
+
+    const resultado = analizarEstructura(codigo);
+
+    assert.match(resultado, /leerArchivo/);
+    assert.match(resultado, /buscarArchivo/);
+});
