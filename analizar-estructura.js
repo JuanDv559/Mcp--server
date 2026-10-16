@@ -16,11 +16,11 @@ function analizarEstructura(codigo) {
         )
     ].map(m => m[1]);
 
-    const declaraciones = [
-        ...codigo.matchAll(
-            /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g
-        )
-    ].map(m => m[1]);
+const declaraciones = [
+    ...codigo.matchAll(
+        /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\((?:[^()]|\([^()]*\))*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g
+    )
+].map(m => m[1]);
 
     const metodos = [
         ...codigo.matchAll(
