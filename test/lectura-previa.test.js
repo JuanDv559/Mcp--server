@@ -157,3 +157,40 @@ function saludar(nombre) {
     assert.match(messages[0].content, /ESTRUCTURA EXTRAÍDA DEL CÓDIGO/);
     assert.match(messages[0].content, /Responde a la solicitud original/);
 });
+test('lee la ruta explícita aunque existan archivos con el mismo nombre', async (t) => {
+    t.mock.method(console, 'log', () => {});
+
+    const mcp = {
+        async callTool({ name }) {
+            if (name === 'search_files') {
+                return {
+                    content: [{
+                        text:
+                            '/proyecto/src/index.js\n' +
+                            '/proyecto/test/index.js'
+                    }]
+                };
+            }
+
+            if (name === 'read_file') {
+                return {
+                    content: [{ text: 'export const valor = 1;' }]
+                };
+            }
+
+            throw new Error(`Herramienta inesperada: ${name}`);
+        }
+    };
+
+    const messages = [];
+
+    await lecturaPrevia(
+        mcp,
+        'Revisa src/index.js',
+        '/proyecto',
+        messages
+    );
+
+    assert.match(messages[0].content, /\/proyecto\/src\/index\.js/);
+    assert.match(messages[0].content, /export const valor = 1/);
+});
