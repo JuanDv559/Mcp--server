@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { analizarEstructura } from './analizar-estructura.js';
-import { cargarInstrucciones } from './src/instructions.js';
+import { seleccionarInstrucciones } from './src/seleccionar-instrucciones.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { askQwen } from './src/llm.js';
@@ -88,17 +88,10 @@ if (!tarea.trim()) {
     return;
 }
 
-const necesitaAnalisis =
-    /\b(código|codigo|archivo|función|funcion|depurar|error|bug|herramienta|mcp|inventario|estructura|carpetas|directorios|archivos del proyecto|lista de archivos|enumera los archivos)\b/i.test(tarea);
-
-const instrucciones = necesitaAnalisis
-    ? await cargarInstrucciones()
-    : 'Obedece exactamente la petición del usuario. No añadas explicaciones ni código que no te pidan.';
-
 const messages = [
     {
         role: 'system',
-        content: instrucciones
+        content: await seleccionarInstrucciones(tarea)
     },
     {
         role: 'user',
