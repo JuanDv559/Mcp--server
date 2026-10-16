@@ -87,28 +87,40 @@ if (!tarea.trim()) {
     await mcp.close();
     return;
 }
+
+const necesitaAnalisis =
+    /\b(código|codigo|archivo|función|funcion|depurar|error|bug|herramienta|mcp|inventario|estructura|carpetas|directorios|archivos del proyecto|lista de archivos|enumera los archivos)\b/i.test(tarea);
+
+const instrucciones = necesitaAnalisis
+    ? await cargarInstrucciones()
+    : 'Obedece exactamente la petición del usuario. No añadas explicaciones ni código que no te pidan.';
+
 const messages = [
-        {
+    {
         role: 'system',
-        content: await cargarInstrucciones()
-         },
-        {
-        role: "user",
+        content: instrucciones
+    },
+    {
+        role: 'user',
         content: tarea
-        }
+    }
 ];
 
 
-const inventario = await crearInventario(
-    mcp,
-    directorioProyecto
-);
 
 
-messages.push({
-    role: 'user',
-    content:
-        `INVENTARIO REAL DEL PROYECTO: ${directorioProyecto}\n\n` +
+
+const necesitaInventario =
+    /\b(inventario|estructura|carpetas|directorios|archivos del proyecto|lista de archivos|enumera los archivos)\b/i.test(tarea);
+
+if (necesitaInventario) {
+    const inventario = await crearInventario(
+        mcp,
+        directorioProyecto
+    );
+
+    messages[1].content +=
+        `\n\nINVENTARIO REAL DEL PROYECTO: ${directorioProyecto}\n\n` +
         inventario +
         '\n\nREGLAS OBLIGATORIAS PARA USAR EL INVENTARIO:\n' +
         '1. Trata cada línea del inventario como una ruta única.\n' +
@@ -116,9 +128,8 @@ messages.push({
         '3. Conserva los prefijos de carpeta, como BackEnd/ y FrontEnd/.\n' +
         '4. Distingue [DIR] (directorio) de [FILE] (archivo).\n' +
         '5. Si enumeras rutas, usa únicamente las líneas del inventario.\n' +
-        '6. Si no puedes verificar un dato, indícalo explícitamente.'
-});
-
+        '6. Si no puedes verificar un dato, indícalo explícitamente.';
+}
 
 
 
