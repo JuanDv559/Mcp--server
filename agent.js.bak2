@@ -1,0 +1,550 @@
+const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
+const {
+    StdioClientTransport
+} = require("@modelcontextprotocol/sdk/client/stdio.js");
+
+async function askQwen(messages) {
+    let response;
+
+    try {
+        response = await fetch(
+            "http://127.0.0.1:8081/v1/chat/completions",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                messages,
+                temperature: 0,
+                max_tokens: 512
+}),
+                signal: AbortSignal.timeout(120000)
+            }
+        );
+    } catch (error) {
+        throw new Error(
+            `No se pudo conectar con llama-server: ${error.message}`
+        );
+    }
+
+    const body = await response.text();
+
+    if (!response.ok) {
+        throw new Error(
+            `llama-server respondió HTTP ${response.status}: ${body}`
+        );
+    }
+
+    let data;
+
+    try {
+        data = JSON.parse(body);
+    } catch {
+        throw new Error(
+            `llama-server no devolvió JSON válido: ${body}`
+        );
+    }
+
+    const contenido = data.choices?.[0]?.message?.content;
+
+    if (typeof contenido !== "string") {
+        throw new Error(
+            `La respuesta no contiene texto de Qwen: ${body}`
+        );
+    }
+
+    return contenido;
+}
+
+  
+
+function parseFirstJson(text) {
+    const start = text.indexOf("{");
+
+    if (start === -1) {
+        return null;
+    }
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < text.length; i++) {
+        const char = text[i];
+
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (char === "\\") {
+                escaped = true;
+            } else if (char === '"') {
+                inString = false;
+            }
+
+            continue;
+        }
+
+        if (char === '"') {
+            inString = true;
+        } else if (char === "{") {
+            depth++;
+        } else if (char === "}") {
+            depth--;
+
+            if (depth === 0) {
+                try {
+                    return JSON.parse(text.slice(start, i + 1));
+                } catch {
+                    return null;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+
+
+
+
+
+
+
+
+
+async function main() {
+
+    // ─────────────────────────
+    // 1. Conectar con MCP
+    // ─────────────────────────
+
+    const transport = new StdioClientTransport({
+        command: "node",
+        args: ["index.js"]
+    });
+
+    const mcp = new Client({
+        name: "qwen-agent",
+        version: "1.0.0"
+    });
+
+    await mcp.connect(transport);
+
+
+    // ─────────────────────────
+    // 2. Obtener herramientas
+    // ─────────────────────────
+
+    const toolsResponse = await mcp.listTools();
+
+    const tools = toolsResponse.tools;
+
+    console.log("Herramientas disponibles:");
+
+    for (const tool of tools) {
+        console.log(`- ${tool.name}`);
+    }
+
+
+    // ─────────────────────────
+    // 3. Crear descripción
+    //    de las herramientas
+    // ─────────────────────────
+
+    const toolDescription = tools.map(tool => {
+
+        return `
+Nombre: ${tool.name}
+Descripción: ${tool.description}
+Entrada: ${JSON.stringify(tool.inputSchema)}
+`;
+
+    }).join("\n");
+
+
+    // ─────────────────────────
+    // 4. Preguntar a Qwen
+    // ─────────────────────────
+
+
+const tarea = process.argv.slice(2).join(" ");
+
+function detectarArchivo(texto) {
+    const coincidencias = texto.match(
+        /[\w.-]+(?:\/[\w.-]+)*\.(?:js|cjs|mjs|jsx|ts|tsx|json|html|css|py|md|env)/gi
+    );
+
+    if (!coincidencias || coincidencias.length === 0) {
+        return null;
+    }
+
+    return coincidencias[coincidencias.length - 1];
+}
+
+
+if (!tarea) {
+    console.log('Uso: node agent.js "Tu instrucción"');
+    await mcp.close();
+    return;
+}
+
+const messages = [
+    {
+        role: "system",
+        content: `
+
+Eres un asistente experto en programación, JavaScript, Node.js,
+React, MongoDB y depuración. Trabajas localmente mediante
+herramientas MCP.
+
+OBJETIVO
+Ayudar al usuario a comprender, analizar, depurar y mejorar
+código basándote en evidencia real.
+
+HERRAMIENTAS
+- list_files: lista los archivos de un directorio.
+- read_file: lee el contenido de un archivo.
+- search_files: busca archivos por nombre.
+
+REGLAS DE USO
+1. Si necesitas encontrar un archivo por nombre, utiliza
+   search_files.
+2. Si necesitas conocer el contenido de un archivo, utiliza
+   read_file.
+3. Si una búsqueda devuelve una ruta absoluta, utiliza esa
+   ruta exacta al leer el archivo.
+4. No afirmes haber leído un archivo sin recibir su contenido.
+5. Usa los resultados reales de las herramientas. No inventes
+   rutas, archivos, funciones, variables ni resultados.
+6. Distingue el código observado de tus hipótesis.
+7. Si falta información, indícalo claramente.
+8. Si necesitas una herramienta, responde con un único objeto
+   JSON válido, sin Markdown ni texto adicional.
+9. Nunca devuelvas dos objetos JSON en una misma respuesta.
+10. Después de recibir los resultados necesarios, responde
+    en español, explicando el razonamiento paso a paso.
+
+
+REGLA OBLIGATORIA SOBRE HERRAMIENTAS:
+
+Las únicas herramientas MCP disponibles son:
+- list_files
+- read_file
+- search_files
+
+No inventes herramientas, funciones registradas ni resultados.
+No confundas funciones de JavaScript con herramientas MCP.
+Si te preguntan cuáles están registradas, responde usando
+exclusivamente el código fuente real de index.js.
+Si el archivo ya fue leído y tienes su contenido en el historial,
+responde directamente sin volver a buscarlo ni leerlo.
+
+
+
+ANÁLISIS DEL CÓDIGO
+- Identifica qué hace cada función y cómo se relaciona con
+  las demás.
+- Distingue las herramientas MCP registradas de las funciones
+  normales y de los métodos de bibliotecas externas.
+- No clasifiques una llamada como herramienta MCP solo porque
+  su nombre contenga "tool" o "register".
+- Para identificar herramientas disponibles, comprueba los
+  nombres registrados mediante server.registerTool y contrasta
+  con las herramientas que devuelve MCP.
+- No repitas explicaciones sin aportar información nueva.
+- Al depurar, identifica primero la causa probable y después
+  propone el cambio mínimo necesario.
+- No afirmes que una solución funciona hasta comprobarlo.
+
+FORMATO DE RESPUESTA
+Cuando expliques código:
+1. Qué hace.
+2. Cómo funciona.
+3. Ejemplo concreto.
+4. Errores o mejoras posibles, si son relevantes.
+
+Si no necesitas herramientas, responde directamente.
+
+`
+
+
+
+
+    },
+    {
+        role: "user",
+        content: tarea
+    }
+];
+
+
+    // 5. Ciclo de herramientas
+    const MAX_TOOL_CALLS = 5;
+    let respuestaFinal = false;
+    let rutaEncontrada = null;
+    let archivoLeido = false;
+
+    try {
+        for (let intento = 1; intento <= MAX_TOOL_CALLS; intento++) {
+            const respuesta = await askQwen(messages);
+            const texto = respuesta.trim();
+
+            console.log(`\nRespuesta de Qwen (intento ${intento}):`);
+            console.log(texto);
+
+           const decision = parseFirstJson(texto);
+
+if (!decision) {
+    // Si ya encontramos el archivo, intentar leerlo.
+    if (rutaEncontrada && !archivoLeido) {
+        const lectura = await mcp.callTool({
+            name: "read_file",
+            arguments: {
+                path: rutaEncontrada
+            }
+        });
+
+        const contenidoArchivo = (lectura.content || [])
+            .map(item => item.text || "")
+            .join("\n");
+
+        console.log("\nEjecutando herramienta: read_file");
+        console.log("\nContenido leído:");
+        console.log(contenidoArchivo);
+
+        messages.push({
+            role: "user",
+            content: `Contenido real de ${rutaEncontrada}:\n\n${contenidoArchivo}\n\nResponde a la solicitud original basándote en este código.`
+        });
+
+        archivoLeido = true;
+        continue;
+    }
+
+    // Buscar dinámicamente el archivo mencionado en la tarea.
+if (!rutaEncontrada && !archivoLeido) {
+    const archivoSolicitado = detectarArchivo(tarea);
+
+    if (!archivoSolicitado) {
+        console.log(
+            "\nNo se detectó un archivo concreto en la solicitud."
+        );
+
+        messages.push({
+            role: "user",
+            content:
+                "No se detectó un archivo concreto. " +
+                "Si la tarea requiere consultar el proyecto, " +
+                "usa list_files para explorar el directorio actual " +
+                "y determina qué archivo necesitas revisar. " +
+                "Si no necesitas consultar archivos, responde directamente."
+        });
+
+        respuestaFinal = true;
+        break;
+    }
+
+    console.log(
+        `\nBuscando ${archivoSolicitado} automáticamente...`
+    );
+
+    const busqueda = await mcp.callTool({
+        name: "search_files",
+        arguments: {
+            name: archivoSolicitado,
+            path: process.cwd()
+        }
+    });
+
+    const resultadoBusqueda = (busqueda.content || [])
+        .map(item => item.text || "")
+        .join("\n");
+
+    console.log("\nResultado de la búsqueda:");
+    console.log(resultadoBusqueda);
+
+    const rutas = resultadoBusqueda
+        .split("\n")
+        .map(linea => linea.trim())
+        .filter(linea =>
+            linea.startsWith("/") &&
+            !linea.startsWith("Error:")
+        );
+
+    if (rutas.length > 0) {
+        rutaEncontrada = rutas[0];
+
+        messages.push({
+            role: "user",
+            content:
+                `La búsqueda encontró el archivo solicitado: ` +
+                `${rutaEncontrada}. Léelo mediante la herramienta ` +
+                `read_file antes de responder a la tarea original.`
+        });
+
+        continue;
+    }
+
+    messages.push({
+        role: "user",
+        content:
+            `No se encontró el archivo ${archivoSolicitado}. ` +
+            "No inventes su contenido ni afirmes haberlo leído. " +
+            "Explica que no se encontró."
+    });
+
+    respuestaFinal = true;
+    break;
+}
+
+    respuestaFinal = true;
+    break;
+}
+            
+if (!decision.tool) {
+    // Si no hay una herramienta solicitada, aceptar la respuesta final
+    // únicamente cuando no quede un archivo pendiente de leer.
+    if (rutaEncontrada && !archivoLeido) {
+        const lectura = await mcp.callTool({
+            name: "read_file",
+            arguments: {
+                path: rutaEncontrada
+            }
+        });
+
+        const contenidoArchivo = (lectura.content || [])
+            .map(item => item.text || "")
+            .join("\n");
+
+        console.log("\nEjecutando herramienta: read_file");
+        console.log("\nContenido leído:");
+        console.log(contenidoArchivo);
+
+        messages.push({
+            role: "user",
+            content:
+                `Contenido real de ${rutaEncontrada}:\n\n` +
+                `${contenidoArchivo}\n\n` +
+                "Responde a la solicitud original basándote en " +
+                "este contenido. No inventes información."
+        });
+
+        archivoLeido = true;
+        continue;
+    }
+
+    respuestaFinal = true;
+    break;
+}
+
+
+            const herramientaExiste = tools.some(
+                tool => tool.name === decision.tool
+            );
+
+            if (!herramientaExiste) {
+                throw new Error(
+                    `Herramienta desconocida: ${decision.tool}`
+                );
+            }
+
+            const args = { ...(decision.arguments || {}) };
+
+            // Normalizar los argumentos que puede generar Qwen.
+            if (decision.tool === "list_files") {
+                args.path = args.path || args.dir || ".";
+            }
+
+            if (decision.tool === "read_file") {
+                args.path = args.path || args.file;
+            }
+
+            if (decision.tool === "search_files") {
+                args.name = args.name || args.file || args.query;
+                args.path = args.path || args.dir || ".";
+            }
+
+            console.log(`\nEjecutando herramienta: ${decision.tool}`);
+
+            const resultado = await mcp.callTool({
+                name: decision.tool,
+                arguments: args
+            });
+
+            const toolResult = (resultado.content || [])
+                .map(item => item.text || "")
+                .join("\n");
+	
+	   // Guardar una ruta real devuelta por search_files.
+	     if (decision.tool === "search_files" && toolResult.trim()) {
+    	    const rutas = toolResult
+        	.split("\n")
+        	.map(ruta => ruta.trim())
+        	.filter(ruta => ruta.startsWith("/"));
+
+   	     if (rutas.length > 0) {
+        	rutaEncontrada = rutas[0];
+    }
+}
+
+
+
+            console.log("\nResultado de MCP:");
+            console.log(toolResult);
+
+            // Conservar la decisión y el resultado en el historial.
+            messages.push({
+                role: "assistant",
+                content: texto
+            });
+
+            messages.push({
+                role: "user",
+                content: `
+Resultado de la herramienta ${decision.tool}:
+
+${toolResult}
+
+Continúa con la solicitud original del usuario.
+
+Si necesitas otra herramienta, responde únicamente con JSON válido:
+{"tool":"nombre_de_herramienta","arguments":{...}}
+
+Si ya tienes información suficiente, responde directamente
+en español. No inventes resultados ni repitas herramientas
+innecesariamente.
+`
+            });
+        }
+
+        if (!respuestaFinal) {
+            // Se agotó el límite de llamadas a herramientas.
+            messages.push({
+                role: "user",
+                content: `
+Has alcanzado el límite de llamadas a herramientas.
+No llames más herramientas. Responde ahora en español
+con las conclusiones que puedas justificar usando los
+resultados disponibles. Indica si falta información.
+`
+            });
+
+            const final = await askQwen(messages);
+
+            console.log("\nRespuesta final de Qwen:");
+            console.log(final);
+        }
+    } catch (error) {
+        console.error("\nError procesando la tarea:", error.message);
+    } finally {
+        await mcp.close();
+    }
+}
+
+main().catch(error => {
+    console.error("Error:", error);
+});
+
+
