@@ -94,3 +94,66 @@ test('propaga errores de MCP durante la búsqueda', async (t) => {
         /Fallo de búsqueda MCP/
     );
 });
+test('lee el archivo y añade su contenido y estructura a messages', async (t) => {
+    t.mock.method(console, 'log', () => {});
+
+    const contenidoArchivo = `
+function saludar(nombre) {
+    return 'Hola ' + nombre;
+}
+`;
+
+    const llamadas = [];
+
+    const mcp = {
+        async callTool({ name, arguments: args }) {
+            llamadas.push({ name, arguments: args });
+
+            if (name === 'search_files') {
+                return {
+                    content: [{
+                        text: '/proyecto/src/ejemplo.js'
+                    }]
+                };
+            }
+
+            if (name === 'read_file') {
+                return {
+                    content: [{ text: contenidoArchivo }]
+                };
+            }
+
+            throw new Error(`Herramienta inesperada: ${name}`);
+        }
+    };
+
+    const messages = [];
+
+    await lecturaPrevia(
+        mcp,
+        'Revisa src/ejemplo.js',
+        '/proyecto',
+        messages
+    );
+
+    assert.deepEqual(
+        llamadas.map(llamada => llamada.name),
+        ['search_files', 'read_file']
+    );
+
+    assert.equal(
+        llamadas[0].arguments.name,
+        'ejemplo.js'
+    );
+
+    assert.equal(
+        llamadas[1].arguments.path,
+        '/proyecto/src/ejemplo.js'
+    );
+
+    assert.equal(messages.length, 1);
+    assert.match(messages[0].content, /Contenido real de/);
+    assert.match(messages[0].content, /function saludar/);
+    assert.match(messages[0].content, /ESTRUCTURA EXTRAÍDA DEL CÓDIGO/);
+    assert.match(messages[0].content, /Responde a la solicitud original/);
+});
