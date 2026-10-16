@@ -1,4 +1,7 @@
-const fs = require("fs");
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+
 
 function analizarEstructura(codigo) {
     const herramientas = [
@@ -53,18 +56,22 @@ function analizarEstructura(codigo) {
     ].join("\n");
 }
 
-if (require.main === module) {
+
+const archivoActual = fileURLToPath(import.meta.url);
+const archivoEjecutado = process.argv[1]
+    ? resolve(process.argv[1])
+    : '';
+
+if (archivoEjecutado === archivoActual) {
     const archivo = process.argv[2];
 
     if (!archivo) {
-        console.error(
-            "Uso: node analizar-estructura.js archivo.js"
-        );
+        console.error('Uso: node analizar-estructura.js archivo.js');
         process.exitCode = 1;
     } else {
-        const codigo = fs.readFileSync(archivo, "utf8");
+        const codigo = fs.readFileSync(archivo, 'utf8');
         console.log(analizarEstructura(codigo));
     }
 }
 
-module.exports = { analizarEstructura };
+export { analizarEstructura };

@@ -1,5 +1,6 @@
-const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-const { StdioClientTransport } = require("@modelcontextprotocol/sdk/client/stdio.js");
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
 
 async function main() {
     const transport = new StdioClientTransport({
